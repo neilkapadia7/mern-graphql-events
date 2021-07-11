@@ -78,11 +78,24 @@ app.use('/graphql', graphqlHTTP({
                 description: args.eventInput.description,
                 price: +args.eventInput.price,
                 date: new Date(args.eventInput.date).toISOString(),
+                creator: '60eae88708c7ae5564463519',
             })
-            event.save()
+            let createdEvent;
+            return event.save()
               .then(result => {
-                  console.log(result);
-                  return {...result._doc, _id: event._doc._id.toString()}
+                createdEvent = {...result._doc, _id: event._doc._id.toString()}   
+                return Users.findById('60eae88708c7ae5564463519')
+              })
+              .then(user => {
+                  if(!user) {
+                    throw new Error("User Doesn't Exists");
+                  }
+                  user.createdEvents.push(event);
+                  return user.save()
+              })
+              .then(result => {
+                console.log(createdEvent);
+                return createdEvent
               })
               .catch(err => {
                   console.log(err);
@@ -91,7 +104,13 @@ app.use('/graphql', graphqlHTTP({
             return event
         },
         createUser: (args) => {
-            return bcrypt.hash(args.userInput.password, 12)
+            return Users.findOne({email: args.userInput.email})
+              .then(user => {
+                  if(user) {
+                      throw new Error('User Already Exists');
+                  }                  
+                  return bcrypt.hash(args.userInput.password, 12)  
+              })
                 .then(hashedPassword => {
                     const user = new Users({
                         email: args.userInput.email,
@@ -101,7 +120,7 @@ app.use('/graphql', graphqlHTTP({
                 })
                 .then(result => {
                     console.log(result);
-                    return {...result._doc, _id: result.id}
+                    return {...result._doc, password: null, _id: result.id}
                 })
                 .catch(error => {
                     console.log(error);
